@@ -1,5 +1,4 @@
 from rest_framework import filters, viewsets
-from rest_framework.exceptions import PermissionDenied
 from rest_framework.pagination import (
     PageNumberPagination,
     LimitOffsetPagination,
@@ -7,7 +6,7 @@ from rest_framework.pagination import (
 from rest_framework.permissions import IsAuthenticated
 
 from posts.models import Comment, Follow, Group, Post
-from .permissions import IsOwner
+from .permissions import AuthorIsOwnerOrReadOnly, IsOwner
 from .serializers import (
     CommentSerializer,
     FollowSerializer,
@@ -23,19 +22,10 @@ class PostViewSet(viewsets.ModelViewSet):
     serializer_class = PostSerializer
     pagination_class = PageNumberPagination
     pagination_class = LimitOffsetPagination
+    permission_classes = [AuthorIsOwnerOrReadOnly]
 
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
-
-    def perform_update(self, serializer):
-        if serializer.instance.author != self.request.user:
-            raise PermissionDenied()
-        super(PostViewSet, self).perform_update(serializer)
-
-    def perform_destroy(self, instance):
-        if instance.author != self.request.user:
-            raise PermissionDenied(RAISE_MESSAGE)
-        super(PostViewSet, self).perform_destroy(instance)
 
 
 class GroupViewSet(viewsets.ReadOnlyModelViewSet):
@@ -46,6 +36,7 @@ class GroupViewSet(viewsets.ReadOnlyModelViewSet):
 class CommentViewSet(viewsets.ModelViewSet):
     queryset = Comment.objects.all()
     serializer_class = CommentSerializer
+    permission_classes = [AuthorIsOwnerOrReadOnly]
 
     def filter_queryset(self, queryset):
         post_pk = self.kwargs.get('post_pk')
@@ -55,16 +46,6 @@ class CommentViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         post_pk = self.kwargs.get('post_pk')
         serializer.save(author=self.request.user, post_id=post_pk)
-
-    def perform_update(self, serializer):
-        if serializer.instance.author != self.request.user:
-            raise PermissionDenied(RAISE_MESSAGE)
-        super(CommentViewSet, self).perform_update(serializer)
-
-    def perform_destroy(self, instance):
-        if instance.author != self.request.user:
-            raise PermissionDenied(RAISE_MESSAGE)
-        super(CommentViewSet, self).perform_destroy(instance)
 
 
 class FollowViewSet(viewsets.ModelViewSet):
